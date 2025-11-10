@@ -14,7 +14,6 @@ from openpyxl.utils import get_column_letter # <-- NEW: Import helper
 APPS_SCRIPT_BASE_URL = "https://script.google.com/macros/s/AKfycbxoi_t5cIlKa55K0FqIZ5ZWCcWyrAx81bHoNo47rz0HqwJ1ROOyluozAV1-28mXqBraKw/exec"
 
 ### 2. PASTE YOUR GEMINI API KEY HERE ###
-GEMINI_API_KEY = "AIzaSyC6BHZg-VR__6vn0usEUjVEkveA-wAd0I0"
 
 # --- Setup URLs ---
 APPS_SCRIPT_URL_AUDIO = f"https://script.google.com/macros/s/AKfycbxoi_t5cIlKa55K0FqIZ5ZWCcWyrAx81bHoNo47rz0HqwJ1ROOyluozAV1-28mXqBraKw/exec?action=saveAudio"
