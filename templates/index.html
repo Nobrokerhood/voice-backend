@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Voice to Excel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #000000, #001a33);
+      color: #f0f2f5;
+      margin: 0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      padding: 40px;
+      overflow-y: auto;
+    }
+    h1 { color:#00bfff; margin-bottom:6px; }
+    p { color:#dcdcdc; margin-bottom:14px; }
+    .controls-box {
+      border: 1px solid #00bfff;
+      padding: 2rem;
+      background: rgba(0, 30, 50, 0.5);
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      text-align: center;
+      width: 80%;
+      max-width: 600px;
+    }
+    button {
+      background: #00bfff;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1.1rem;
+      margin: 5px;
+      transition: 0.3s;
+    }
+    button:hover { transform: scale(1.03); }
+    button:disabled { background: #555; cursor: not-allowed; }
+    #recordButton.recording { background: #ff4444; }
+    #downloadBackupButton { background: #28a745; }
+    select {
+      font-size: 1.1rem;
+      padding: 0.8rem;
+      margin-bottom: 1.5rem;
+      border-radius: 5px;
+      background: #001a33;
+      color: #f0f2f5;
+      border: 1px solid #00bfff;
+      width: 100%;
+    }
+    #status {
+      font-size: 1rem;
+      color: #cfeaff;
+      margin-top: 1rem;
+      min-height: 20px;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>🎙️ Voice to Excel Entry</h1>
+    <p>Select a template and press record to begin.</p>
+
+    <div class="controls-box">
+      <label for="templateSelect" style="display:block; margin-bottom: 8px; font-weight:bold; color: #00bfff;">
+        Select a Billing Template
+      </label>
+
+      <select id="templateSelect">
+        <option value="template1">Template 1 (Import Reciepts)</option>
+        <option value="template2">Template 2 (Vendor Upload)</option>
+        <option value="template3">Template 3 (Maintenance)</option>
+      </select>
+
+      <button id="recordButton">Start Recording</button>
+
+      <div id="postRecordingControls" class="hidden">
+        <button id="downloadBackupButton">Download Audio Backup</button>
+        <button id="submitButton">Submit for Processing</button>
+      </div>
+
+      <label for="uploadBackupInput" class="hidden" id="uploadBackupLabel">
+        <button onclick="document.getElementById('uploadBackupInput').click()" type="button">
+          Upload Backup File
+        </button>
+      </label>
+      <input type="file" id="uploadBackupInput" accept="audio/*" class="hidden">
+
+      <p id="status">Status: Idle</p>
+    </div>
+
+  </div>
+
+  <script>
+    // Get all our HTML elements
+    const recordButton = document.getElementById('recordButton');
+    const statusText = document.getElementById('status');
+    const templateSelect = document.getElementById('templateSelect');
+    const postRecordingControls = document.getElementById('postRecordingControls');
+    const downloadBackupButton = document.getElementById('downloadBackupButton');
+    const submitButton = document.getElementById('submitButton');
+    const uploadBackupInput = document.getElementById('uploadBackupInput');
+    const uploadBackupLabel = document.getElementById('uploadBackupLabel');
+
+    let mediaRecorder;
+    let audioChunks = [];
+    let audioBlob = null; // This will hold our final audio file
+    let isRecording = false;
+
+    // --- 1. RECORDING LOGIC ---
+    recordButton.addEventListener('click', async () => {
+      if (isRecording) {
+        // --- STOP RECORDING ---
+        mediaRecorder.stop();
+        isRecording = false;
+        recordButton.textContent = 'Start Recording';
+        recordButton.classList.remove('recording');
+        statusText.textContent = 'Status: Recording stopped. Ready to submit.';
+
+        // Show the "Download" and "Submit" buttons
+        postRecordingControls.classList.remove('hidden');
+        recordButton.disabled = true; // Disable "Start" until submitted
+        uploadBackupLabel.classList.remove('hidden'); // Show backup upload
+      } else {
+        // --- START RECORDING ---
+        try {
+          audioChunks = []; // Clear old audio
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+
+          mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+          };
+
+          mediaRecorder.onstop = () => {
+            // Create the final audio file blob
+            audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
+          };
+
+          mediaRecorder.start();
+          isRecording = true;
+          recordButton.textContent = 'Stop Recording';
+          recordButton.classList.add('recording');
+          statusText.textContent = 'Status: Recording...';
+
+          // Hide other buttons
+          postRecordingControls.classList.add('hidden');
+          uploadBackupLabel.classList.add('hidden');
+
+        } catch (err) {
+          console.error('Error starting recording:', err);
+          statusText.textContent = 'Error: Could not start recording. Check mic permissions.';
+        }
+      }
+    });
+
+    // --- 2. BACKUP BUTTON LOGIC ---
+    downloadBackupButton.addEventListener('click', () => {
+      if (!audioBlob) return;
+
+      const url = URL.createObjectURL(audioBlob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `voice_backup_${new Date().toISOString()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      statusText.textContent = 'Status: Backup downloaded!';
+    });
+
+    // --- 3. SUBMIT BUTTON LOGIC ---
+    submitButton.addEventListener('click', () => {
+      if (!audioBlob) {
+        alert('No audio recorded to submit!');
+        return;
+      }
+      uploadAudio(audioBlob);
+    });
+
+    // --- 4. UPLOAD BACKUP LOGIC ---
+    uploadBackupInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        statusText.textContent = `Status: Uploading backup file: ${file.name}`;
+        uploadAudio(file);
+      }
+    });
+
+    // --- 5. THE MASTER UPLOAD FUNCTION ---
+    function uploadAudio(fileToUpload) {
+      const template = templateSelect.value;
+
+      const formData = new FormData();
+      formData.append('template', template);
+      formData.append('audio', fileToUpload, 'recording.webm');
+
+      statusText.textContent = 'Status: Uploading and processing... This may take a moment.';
+      submitButton.disabled = true;
+      downloadBackupButton.disabled = true;
+      recordButton.disabled = true;
+      uploadBackupLabel.classList.add('hidden');
+
+      // Send the data to our Python server
+      // We will create this '/api/process-audio' endpoint in the next step
+      fetch('/api/process-audio', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.statusText}`);
+        }
+        // We expect a file download (the Excel sheet) as the response
+        return response.blob();
+      })
+      .then(blob => {
+        // Create a link to download the Excel file
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'billing_report.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+
+        // Reset the UI
+        statusText.textContent = 'Status: Success! Excel file downloaded.';
+        resetUI();
+      })
+      .catch(err => {
+        console.error('Upload error:', err);
+        statusText.textContent = `Error: ${err.message}. Please try again or use a backup.`;
+        // Re-enable buttons so user can try again
+        resetUI();
+      });
+    }
+
+    function resetUI() {
+      submitButton.disabled = false;
+      downloadBackupButton.disabled = false;
+      recordButton.disabled = false;
+      postRecordingControls.classList.add('hidden');
+      uploadBackupLabel.classList.remove('hidden');
+      audioBlob = null;
+      audioChunks = [];
+    }
+
+  </script>
+</body>
+</html>
