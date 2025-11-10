@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_file # <-- NEW: Import send_file
 import requests
 import io
+import os
 from flask_cors import CORS
 import json
 from faster_whisper import WhisperModel
@@ -9,16 +10,15 @@ import openpyxl # <-- NEW: Import openpyxl
 from openpyxl.utils import get_column_letter # <-- NEW: Import helper
 
 # --- Configuration ---
+### 2. READ SECRETS FROM THE ENVIRONMENT ###
+APPS_SCRIPT_BASE_URL = os.environ.get("APPS_SCRIPT_BASE_URL")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-### 1. PASTE YOUR APPS SCRIPT URL HERE ###
-APPS_SCRIPT_BASE_URL = "https://script.google.com/macros/s/AKfycbxoi_t5cIlKa55K0FqIZ5ZWCcWyrAx81bHoNo47rz0HqwJ1ROOyluozAV1-28mXqBraKw/exec"
-
-### 2. PASTE YOUR GEMINI API KEY HERE ###
+# --- End of Configuration ---
 
 # --- Setup URLs ---
-APPS_SCRIPT_URL_AUDIO = f"https://script.google.com/macros/s/AKfycbxoi_t5cIlKa55K0FqIZ5ZWCcWyrAx81bHoNo47rz0HqwJ1ROOyluozAV1-28mXqBraKw/exec?action=saveAudio"
-APPS_SCRIPT_URL_LOG = f"https://script.google.com/macros/s/AKfycbxoi_t5cIlKa55K0FqIZ5ZWCcWyrAx81bHoNo47rz0HqwJ1ROOyluozAV1-28mXqBraKw/exec?action=logData" # <-- NEW
-
+APPS_SCRIPT_URL_AUDIO = f"{APPS_SCRIPT_BASE_URL}?action=saveAudio"
+APPS_SCRIPT_URL_LOG = f"{APPS_SCRIPT_BASE_URL}?action=logData"
 # --- Define Template Schemas ---
 TEMPLATE_SCHEMAS = {
     "template1": {
