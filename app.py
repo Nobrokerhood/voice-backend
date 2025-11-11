@@ -73,7 +73,7 @@ gemini_model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- Load Whisper Model ---
 print("Loading transcription model...")
-whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+whisper_model = WhisperModel("tiny", device="cpu", compute_type="int8")
 print("Transcription model loaded.")
 
 app = Flask(__name__)
