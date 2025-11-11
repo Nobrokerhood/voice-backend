@@ -219,4 +219,6 @@ def process_audio():
     return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-  app.run(debug=True, port=5000)
+  port = int(os.environ.get("PORT", 7860)) 
+  # Run the app in production mode, accessible on the network
+  app.run(debug=False, host='0.0.0.0', port=port)
