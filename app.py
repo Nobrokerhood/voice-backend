@@ -4,7 +4,6 @@ import io
 import os
 from flask_cors import CORS
 import json
-from faster_whisper import WhisperModel
 import google.generativeai as genai
 import openpyxl # <-- NEW: Import openpyxl
 from openpyxl.utils import get_column_letter # <-- NEW: Import helper
@@ -76,17 +75,7 @@ TEMPLATE_SCHEMAS = {
 
 # --- Configure Gemini ---
 genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel('gemini-2.5-flash')
-
-# --- Load Whisper Model ---
-print("Loading transcription model...")
-
-whisper_model = WhisperModel(
-    "tiny", 
-    device="cpu", 
-    compute_type="int8"
-)
-print("Transcription model loaded.")
+gemini_model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 app = Flask(__name__)
 CORS(app)
@@ -104,25 +93,46 @@ def process_audio():
     logging.info(f"Received request with template: {template_name} and audio file: {audio_file.filename}")
 
     audio_filename = audio_file.filename
-    audio_in_memory = io.BytesIO(audio_file.read())
-    logging.info("Audio file read into memory.")
 
     # --- 1. Store Audio in Google Drive ---
     logging.info(f"Uploading {audio_filename} to Google Drive...")
-    audio_in_memory.seek(0)
+    audio_file.seek(0) # Ensure file pointer is at the beginning
     params = {'filename': audio_filename}
     headers = {'Content-Type': audio_file.mimetype}
 
-    r_audio = requests.post(APPS_SCRIPT_URL_AUDIO, params=params, data=audio_in_memory, headers=headers)
+    r_audio = requests.post(APPS_SCRIPT_URL_AUDIO, params=params, data=audio_file.read(), headers=headers)
     r_audio.raise_for_status()
     logging.info("Upload to Google Drive successful.")
+    audio_file.seek(0) # Reset pointer again for the next upload
 
-    # --- 2. Transcribe the Audio ---
-    logging.info("Starting transcription...")
-    audio_in_memory.seek(0)
-    segments, info = whisper_model.transcribe(audio_in_memory, beam_size=5)
+    # --- 2. Transcribe the Audio using Gemini ---
+    logging.info("Starting transcription with Gemini...")
+    
+    # Upload the audio file to the Gemini API
+    logging.info(f"Uploading {audio_filename} to Gemini for transcription...")
+    
+    # Create an in-memory binary stream to pass to the API
+    audio_file_in_memory = io.BytesIO(audio_file.read())
+    
+    uploaded_audio = genai.upload_file(
+        path=audio_file_in_memory,
+        display_name=audio_filename,
+        mime_type=audio_file.mimetype
+    )
+    logging.info("Audio uploaded to Gemini successfully.")
 
-    transcription_text = " ".join([segment.text for segment in segments])
+    # Prompt Gemini to transcribe the audio
+    prompt = "Please transcribe the following audio recording. Provide only the text from the audio in english ONLY ENGLISH."
+    response = gemini_model.generate_content([prompt, uploaded_audio])
+
+    # Clean up the uploaded file on Google's servers
+    genai.delete_file(uploaded_audio.name)
+
+    if not response.text:
+        logging.error("Gemini returned an empty transcription.")
+        return jsonify({"error": "Transcription failed: The AI returned no text."}), 500
+    
+    transcription_text = response.text
 
     logging.info("Transcription complete:")
     logging.info(f"[{transcription_text}]")
