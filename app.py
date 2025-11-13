@@ -8,6 +8,13 @@ from faster_whisper import WhisperModel
 import google.generativeai as genai
 import openpyxl # <-- NEW: Import openpyxl
 from openpyxl.utils import get_column_letter # <-- NEW: Import helper
+import logging
+
+# --- Logging Configuration ---
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    handlers=[logging.StreamHandler()])
+# --- End of Logging Configuration ---
 
 # --- Configuration ---
 ### 2. READ SECRETS FROM THE ENVIRONMENT ###
@@ -90,35 +97,38 @@ def index():
 
 @app.route('/api/process-audio', methods=['POST'])
 def process_audio():
+  logging.info("Starting audio processing...")
   try:
     template_name = request.form['template']
     audio_file = request.files['audio']
+    logging.info(f"Received request with template: {template_name} and audio file: {audio_file.filename}")
 
     audio_filename = audio_file.filename
     audio_in_memory = io.BytesIO(audio_file.read())
+    logging.info("Audio file read into memory.")
 
     # --- 1. Store Audio in Google Drive ---
-    print(f"Uploading {audio_filename} to Google Drive...")
+    logging.info(f"Uploading {audio_filename} to Google Drive...")
     audio_in_memory.seek(0)
     params = {'filename': audio_filename}
     headers = {'Content-Type': audio_file.mimetype}
 
     r_audio = requests.post(APPS_SCRIPT_URL_AUDIO, params=params, data=audio_in_memory, headers=headers)
     r_audio.raise_for_status()
-    print("Upload to Google Drive successful.")
+    logging.info("Upload to Google Drive successful.")
 
     # --- 2. Transcribe the Audio ---
-    print("Starting transcription...")
-    audio_in_memory.seek(0) 
+    logging.info("Starting transcription...")
+    audio_in_memory.seek(0)
     segments, info = whisper_model.transcribe(audio_in_memory, beam_size=5)
 
     transcription_text = " ".join([segment.text for segment in segments])
 
-    print("Transcription complete:")
-    print(f"[{transcription_text}]")
+    logging.info("Transcription complete:")
+    logging.info(f"[{transcription_text}]")
 
     # --- 3. Analyze Text with Gemini ---
-    print("Sending to Gemini for analysis...")
+    logging.info("Sending to Gemini for analysis...")
 
     schema_info = TEMPLATE_SCHEMAS.get(template_name, TEMPLATE_SCHEMAS["template3"])
     chosen_schema = schema_info["schema"]
@@ -139,11 +149,11 @@ def process_audio():
     response = gemini_model.generate_content(prompt)
     extracted_json_text = response.text.strip().replace("```json", "").replace("```", "")
 
-    print("Gemini analysis complete:")
-    print(f"{extracted_json_text}")
+    logging.info("Gemini analysis complete:")
+    logging.info(f"{extracted_json_text}")
 
     # --- 4. Log Data to Google Sheet ---
-    print("Logging data to Google Sheet...")
+    logging.info("Logging data to Google Sheet...")
 
     log_data = {
         "template": f"{template_name} ({schema_info['name']})",
@@ -153,10 +163,10 @@ def process_audio():
 
     r_log = requests.post(APPS_SCRIPT_URL_LOG, data=json.dumps(log_data), headers={'Content-Type': 'application/json'})
     r_log.raise_for_status()
-    print("Logging successful.")
+    logging.info("Logging successful.")
 
     # --- 5. NEW: Create the Excel File ---
-    print("Creating Excel file...")
+    logging.info("Creating Excel file...")
 
     # Load the JSON data
     try:
@@ -164,8 +174,8 @@ def process_audio():
       if not isinstance(data, list): # Ensure it's a list
         raise ValueError("Gemini did not return a list.")
     except Exception as e:
-      print(f"Error parsing JSON from Gemini: {e}")
-      print(f"Gemini output was: {extracted_json_text}")
+      logging.error(f"Error parsing JSON from Gemini: {e}")
+      logging.error(f"Gemini output was: {extracted_json_text}")
       # Handle error - maybe create an empty Excel or one with the error
       return jsonify({"error": f"Could not understand AI output: {e}"}), 500
 
@@ -182,14 +192,16 @@ def process_audio():
     if not data:
       # Handle empty data
       ws['A1'] = "No data extracted."
+      logging.warning("No data extracted from Gemini output.")
     else:
       # Get all headers from the first row of data
       # This handles different templates automatically
       headers = list(data[0].keys())
+      logging.info(f"Excel headers: {headers}")
 
       # Write headers to the first row
       for col_idx, header in enumerate(headers, 1):
-          ws[f"{get_column_letter(col_idx)}1"] = header
+          ws[f"{{get_column_letter(col_idx)}}1"] = header
 
       # Write the data rows
       for row_idx, row_data in enumerate(data, 2): # Start from row 2
@@ -201,16 +213,18 @@ def process_audio():
               if isinstance(cell_value, list):
                   cell_value = json.dumps(cell_value)
 
-              ws[f"{get_column_letter(col_idx)}{row_idx}"] = cell_value
+              ws[f"{{get_column_letter(col_idx)}}{{row_idx}}"] = cell_value
+      logging.info(f"Wrote {len(data)} rows to Excel file.")
 
     # Save the workbook to a in-memory file
     excel_in_memory = io.BytesIO()
     wb.save(excel_in_memory)
     excel_in_memory.seek(0) # Go to the start of the file
 
-    print("Excel file created.")
+    logging.info("Excel file created successfully.")
 
     # --- 6. NEW: Send the Excel File to the User ---
+    logging.info("Sending Excel file to the user.")
     return send_file(
         excel_in_memory,
         download_name='billing_report.xlsx',
@@ -220,7 +234,7 @@ def process_audio():
     # --- END OF ALL NEW LOGIC ---
 
   except Exception as e:
-    print(f"Error processing audio: {e}")
+    logging.error(f"Error processing audio: {e}", exc_info=True)
     return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
