@@ -73,8 +73,14 @@ gemini_model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- Load Whisper Model ---
 print("Loading transcription model...")
-whisper_model = WhisperModel("tiny", device="cpu", compute_type="int8")
-print("Transcription model loaded.")
+MODEL_CACHE_PATH = "/var/data/whisper-models" 
+
+whisper_model = WhisperModel(
+    "tiny", 
+    device="cpu", 
+    compute_type="int8", 
+    cache_dir=MODEL_CACHE_PATH
+)print("Transcription model loaded.")
 
 app = Flask(__name__)
 CORS(app)
