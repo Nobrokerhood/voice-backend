@@ -211,7 +211,7 @@ def process_audio():
 
       # Write headers to the first row
       for col_idx, header in enumerate(headers, 1):
-          ws[f"{{get_column_letter(col_idx)}}1"] = header
+          ws[f"{get_column_letter(col_idx)}1"] = header
 
       # Write the data rows
       for row_idx, row_data in enumerate(data, 2): # Start from row 2
@@ -223,7 +223,7 @@ def process_audio():
               if isinstance(cell_value, list):
                   cell_value = json.dumps(cell_value)
 
-              ws[f"{{get_column_letter(col_idx)}}{{row_idx}}"] = cell_value
+              ws[f"{get_column_letter(col_idx)}{row_idx}"] = cell_value
       logging.info(f"Wrote {len(data)} rows to Excel file.")
 
     # Save the workbook to a in-memory file
