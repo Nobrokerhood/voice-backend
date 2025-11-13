@@ -80,7 +80,8 @@ whisper_model = WhisperModel(
     device="cpu", 
     compute_type="int8", 
     cache_dir=MODEL_CACHE_PATH
-)print("Transcription model loaded.")
+)
+print("Transcription model loaded.")
 
 app = Flask(__name__)
 CORS(app)
