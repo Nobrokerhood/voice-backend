@@ -73,13 +73,11 @@ gemini_model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- Load Whisper Model ---
 print("Loading transcription model...")
-MODEL_CACHE_PATH = "/var/data/whisper-models" 
 
 whisper_model = WhisperModel(
     "tiny", 
     device="cpu", 
-    compute_type="int8", 
-    cache_dir=MODEL_CACHE_PATH
+    compute_type="int8"
 )
 print("Transcription model loaded.")
 
